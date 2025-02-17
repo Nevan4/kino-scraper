@@ -42,6 +42,7 @@ class KinoScraper:
         self.db.initialize_schema()  # Ensure schema is set up
 
     def _get_dates_range(self) -> List[str]:
+        """Get a list of dates for the next 10 days."""
         dates = [(datetime.today() + timedelta(days=i)).strftime("%d-%m-%Y") for i in range(10)]
         self.logger.debug(f"Fetching movies for dates: {dates}")
         return dates
@@ -51,6 +52,7 @@ class KinoScraper:
         return self.db.fetch_movie_titles_and_years()
 
     def _fetch_movies_page(self, formatted_date: str) -> Union[Dict[str, str], None]:
+        """Fetch the movies page for a given date."""
         url_for_json = f"{self.base_url}/rep.json?dzien={formatted_date}"
         self.logger.info(f"Fetching movies page for date: {formatted_date}")
         response = requests.get(url_for_json, headers=self.headers)
@@ -62,6 +64,7 @@ class KinoScraper:
             return None
 
     def _parse_movies(self, formatted_date: str) -> None:
+        """Parse the movies for a given date."""
         existing_movies = self._get_existing_movies()
 
         raw_html = self._fetch_movies_page(formatted_date)
@@ -122,6 +125,7 @@ class KinoScraper:
         return countries, year
 
     def _fetch_genre(self, soup: BeautifulSoup) -> Tuple[str, Union[BeautifulSoup, None]]:
+        """Fetch and return the movie genre from the movie page."""
         genre_h4 = next((h4 for h4 in soup.find_all('h4') if 'gatunek' in h4.get_text().lower()), None)
         if genre_h4:
             genre_text = genre_h4.get_text().strip()
@@ -129,6 +133,7 @@ class KinoScraper:
         return "Genre not found", None
 
     def _fetch_description(self, soup: BeautifulSoup, parent_div: Union[BeautifulSoup, None] = None) -> str:
+        """Fetch and return the movie description from the movie page."""
         if parent_div:
             paragraphs = [p.text.strip() for p in parent_div.find_all('p') if p.text.strip()]
             return "\n".join(paragraphs) if paragraphs else "Description not found"
@@ -152,6 +157,7 @@ class KinoScraper:
         return "Unknown", "Unknown"
 
     def _fetch_movie_details(self, movie: Dict[str, Union[str, Dict[str, List[str]]]]) -> None:
+        """Fetch the genre, description, and production details for a movie."""
         self.logger.info(f"Fetching details for: {movie['title']}")
         response = requests.get(movie['link'], headers=self.headers)
         if response.status_code == 200:
@@ -182,6 +188,7 @@ class KinoScraper:
             self.logger.error(f"Failed to fetch movie page for {movie['title']}. Status code: {response.status_code}")
 
     def _get_movies_schedule(self) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
+        """Private method to get the movie schedule."""
         for date in self._get_dates_range():
             self._parse_movies(date)
 
@@ -191,9 +198,12 @@ class KinoScraper:
         return self.movies
 
     def get_movies(self) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
+        """Public method to get the movie schedule."""
         return self._get_movies_schedule()
 
     def send_new_movies_email(self) -> None:
+        """Send an email with the new movies collected."""
+
         # Collect all new movies
         new_movies = [
             {
@@ -213,6 +223,7 @@ class KinoScraper:
             email_sender.send_email(new_movies)
 
     def close_db(self) -> None:
+        """Close the database connection."""
         self.db.close()
 
 
@@ -222,12 +233,11 @@ def main() -> None:
     # Get the movie schedule for tomorrow
     movies_list = scraper.get_movies()
 
+    # Send an email with new movies
     scraper.send_new_movies_email()
 
-    # This approach of handling json dump works only when the logging.FileHandler in logger.config.py uses
-    # utf-8 format - but then, the basic logs from first logger are affected and doesn't print polish characters
+    # Log the collected movie details
     movies_list_json = json.dumps(movies_list, indent=4, ensure_ascii=False)
-    # movies_list_json = movies_list_json.encode('utf-8').decode('utf-8')
     scraper.movies_logger.info("Collected movie details:\n%s", movies_list_json)
 
     # Close the database connection after processing

@@ -30,6 +30,7 @@ class EmailSender:
             return []
 
     def create_email(self, movie_details: List[Dict[str, Any]]) -> MIMEMultipart:
+        """Create an email message with the movie details."""
         message = MIMEMultipart()
         message["From"] = self.sender_email
         message["To"] = ", ".join(self.recipient_emails)

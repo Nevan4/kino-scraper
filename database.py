@@ -61,6 +61,7 @@ class Database:
             raise
 
     def _update_movie(self, movie_id: int, genre: str, description: str, countries: str) -> None:
+        """Update movie details in the database."""
         self.cursor.execute('''
             UPDATE movies
             SET genre = ?, description = ?, countries = ?, last_updated = CURRENT_TIMESTAMP
@@ -68,6 +69,7 @@ class Database:
         ''', (genre, description, countries, movie_id))
 
     def _insert_movie(self, title: str, genre: str, description: str, year: int, countries: str) -> int:
+        """Insert a new movie into the database."""
         self.cursor.execute('''
             INSERT INTO movies (title, genre, description, year, countries, firstly_added)
             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -75,6 +77,7 @@ class Database:
         return self.cursor.lastrowid
 
     def save_movie(self, title: str, genre: str, description: str, year: int, countries: str) -> Optional[int]:
+        """Save movie details to the database."""
         try:
             self.cursor.execute("SELECT id FROM movies WHERE title = ? AND year = ?", (title, year))
             movie = self.cursor.fetchone()
