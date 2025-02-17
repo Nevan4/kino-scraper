@@ -41,9 +41,9 @@ class KinoScraper:
         self.db.connect()
         self.db.initialize_schema()  # Ensure schema is set up
 
-    def _get_dates_range(self) -> List[str]:
-        """Get a list of dates for the next 10 days."""
-        dates = [(datetime.today() + timedelta(days=i)).strftime("%d-%m-%Y") for i in range(10)]
+    def _get_dates_range(self, days: int) -> List[str]:
+        """Get a list of dates for the next 'days' days."""
+        dates = [(datetime.today() + timedelta(days=i)).strftime("%d-%m-%Y") for i in range(days)]
         self.logger.debug(f"Fetching movies for dates: {dates}")
         return dates
 
@@ -187,9 +187,9 @@ class KinoScraper:
         else:
             self.logger.error(f"Failed to fetch movie page for {movie['title']}. Status code: {response.status_code}")
 
-    def _get_movies_schedule(self) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
+    def _get_movies_schedule(self, days: int) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
         """Private method to get the movie schedule."""
-        for date in self._get_dates_range():
+        for date in self._get_dates_range(days):
             self._parse_movies(date)
 
         for movie in self.movies.values():
@@ -197,11 +197,11 @@ class KinoScraper:
 
         return self.movies
 
-    def get_movies(self) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
+    def get_movies(self, days: int = 10) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
         """Public method to get the movie schedule."""
-        return self._get_movies_schedule()
+        return self._get_movies_schedule(days)
 
-    def send_new_movies_email(self) -> None:
+    def send_new_movies_email(self, num_days: int) -> None:
         """Send an email with the new movies collected."""
 
         # Collect all new movies
@@ -220,7 +220,7 @@ class KinoScraper:
         # If we have new movies, send an email
         if new_movies:
             email_sender = EmailSender()
-            email_sender.send_email(new_movies)
+            email_sender.send_email(new_movies, num_days=num_days)
 
     def close_db(self) -> None:
         """Close the database connection."""
@@ -230,11 +230,14 @@ class KinoScraper:
 def main() -> None:
     scraper = KinoScraper()
 
-    # Get the movie schedule for tomorrow
-    movies_list = scraper.get_movies()
+    # Number of days to fetch the movie schedule for
+    num_days = 8
+
+    # Get the movie schedule for the given number of days. Default is 10 days.
+    movies_list = scraper.get_movies(days=num_days)
 
     # Send an email with new movies
-    scraper.send_new_movies_email()
+    scraper.send_new_movies_email(num_days=num_days)
 
     # Log the collected movie details
     movies_list_json = json.dumps(movies_list, indent=4, ensure_ascii=False)

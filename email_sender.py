@@ -1,6 +1,7 @@
 import smtplib
 import os
 from dotenv import load_dotenv
+from datetime import datetime, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import List, Dict, Any
@@ -18,6 +19,12 @@ class EmailSender:
         self.recipient_emails: List[str] = self._load_emails_from_file(emails_file)
 
     @staticmethod
+    def get_today_and_end_date(days_ahead: int) -> tuple:
+        today = datetime.today()
+        end_date = today + timedelta(days=days_ahead) - timedelta(days=1)
+        return today, end_date
+
+    @staticmethod
     def _load_emails_from_file(file_path: str) -> List[str]:
         """Load emails from a text file and return as a list."""
         try:
@@ -29,12 +36,13 @@ class EmailSender:
             print(f"Error: The file '{file_path}' was not found.")
             return []
 
-    def create_email(self, movie_details: List[Dict[str, Any]]) -> MIMEMultipart:
+    def create_email(self, movie_details: List[Dict[str, Any]], days: int) -> MIMEMultipart:
         """Create an email message with the movie details."""
+        today, end_date = self.get_today_and_end_date(days)
         message = MIMEMultipart()
         message["From"] = self.sender_email
         message["To"] = ", ".join(self.recipient_emails)
-        message["Subject"] = "New Movies Screening Schedule - alpha version"
+        message["Subject"] = f"Repertuar nowych filmów na {today.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}"
 
         # Start of the HTML body
         body = """
@@ -72,8 +80,10 @@ class EmailSender:
             </style>
         </head>
         <body>
-        <h1>Nowe filmy:</h1>
         """
+
+        # Append the dynamic date range to the body
+        body += f"<h1>Nowe filmy na: {today.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}</h1>"
 
         # Loop through each movie and build the HTML body
         for movie in movie_details:
@@ -132,9 +142,9 @@ class EmailSender:
         message.attach(MIMEText(body, "html"))
         return message
 
-    def send_email(self, movie_details: List[Dict[str, Any]]) -> None:
+    def send_email(self, movie_details: List[Dict[str, Any]], num_days: int) -> None:
         """Compose and send the email with subject and body."""
-        message = self.create_email(movie_details)
+        message = self.create_email(movie_details, days=num_days)
         try:
             # Connect to the SMTP server
             with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
