@@ -36,12 +36,12 @@ class EmailSender:
             print(f"Error: The file '{file_path}' was not found.")
             return []
 
-    def create_email(self, movie_details: List[Dict[str, Any]], days: int) -> MIMEMultipart:
+    def create_email(self, movie_details: List[Dict[str, Any]], days: int, recipient_email: str) -> MIMEMultipart:
         """Create an email message with the movie details."""
         today, end_date = self.get_today_and_end_date(days)
         message = MIMEMultipart()
         message["From"] = self.sender_email
-        message["To"] = ", ".join(self.recipient_emails)
+        message["To"] = recipient_email
         message["Subject"] = f"Repertuar nowych filmów na {today.strftime('%Y-%m-%d')} - {end_date.strftime('%Y-%m-%d')}"
 
         # Start of the HTML body
@@ -144,17 +144,18 @@ class EmailSender:
 
     def send_email(self, movie_details: List[Dict[str, Any]], num_days: int) -> None:
         """Compose and send the email with subject and body."""
-        message = self.create_email(movie_details, days=num_days)
-        try:
-            # Connect to the SMTP server
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.ehlo()  # Send EHLO to the server (identify yourself)
-                server.starttls()  # Encrypt the connection
-                server.login(self.sender_email, self.sender_password)
+        for recipient_email in self.recipient_emails:
+            message = self.create_email(movie_details, days=num_days, recipient_email=recipient_email)
+            try:
+                # Connect to the SMTP server
+                with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                    server.ehlo()  # Send EHLO to the server (identify yourself)
+                    server.starttls()  # Encrypt the connection
+                    server.login(self.sender_email, self.sender_password)
 
-                # Send the email
-                server.sendmail(self.sender_email, self.recipient_emails, message.as_string())
-                print("Email sent successfully!")
+                    # Send the email
+                    server.sendmail(self.sender_email, recipient_email, message.as_string())
+                    print(f"Email sent successfully to {recipient_email}!")
 
-        except Exception as e:
-            print(f"Error sending email: {e}")
+            except Exception as e:
+                print(f"Error sending email to {recipient_email}: {e}")

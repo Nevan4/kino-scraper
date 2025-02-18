@@ -197,7 +197,7 @@ class KinoScraper:
 
         return self.movies
 
-    def get_movies(self, days: int = 10) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
+    def get_movies(self, days: int = 8) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
         """Public method to get the movie schedule."""
         return self._get_movies_schedule(days)
 
@@ -233,7 +233,7 @@ def main() -> None:
     # Number of days to fetch the movie schedule for
     num_days = 8
 
-    # Get the movie schedule for the given number of days. Default is 10 days.
+    # Get the movie schedule for the given number of days. Default is 8 days.
     movies_list = scraper.get_movies(days=num_days)
 
     # Send an email with new movies
