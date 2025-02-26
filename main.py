@@ -47,7 +47,7 @@ class KinoScraper:
         self.logger.debug(f"Fetching movies for dates: {dates}")
         return dates
 
-    def _get_existing_movies(self) -> List[Tuple[str, str]]:
+    def _get_existing_movies(self) -> List[Tuple[str, int]]:
         """Retrieve all movie titles and years already stored in the database."""
         return self.db.fetch_movie_titles_and_years()
 
