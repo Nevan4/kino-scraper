@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #ffffff;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 650px;
+            margin: auto;
+            background: #fffefc;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0px 5px 15px rgba(0, 0, 0, 0.15);
+        }
+        h1 {
+            color: #c0392b;
+            text-align: center;
+            font-size: 26px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #dddddd;
+            padding: 20px 0;
+        }
+        .movie-title a {
+            font-size: 22px;
+            font-weight: bold;
+            color: #2980b9;
+            text-decoration: none;
+        }
+        .movie-title a:hover {
+            text-decoration: underline;
+        }
+        .movie-details {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #555;
+        }
+        .movie-details .genre, .movie-details .production-year, .movie-details .description {
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+        .movie-details .genre {
+            background-color: #e0f7fa;
+        }
+        .movie-details .production-year {
+            background-color: #f1f8e9;
+        }
+        .movie-details .description {
+            background-color: #fff3e0;
+        }
+        .screening-times {
+            background: #fff5fe;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 12px;
+        }
+        .screening-times strong {
+            color: #c0392b;
+        }
+        .screening-time {
+            color: #2c3e50;
+            font-size: 14px;
+            margin: 6px 0;
+        }
+        .no-screening {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Nowe filmy na: {{ today }} - {{ end_date }}</h1>
+
+        {% for movie in movie_details %}
+        <div class="movie">
+            <div class="movie-title" style="text-align: center; margin: 20px 0;">
+                <a href="{{ movie.link }}" target="_blank">{{ movie.title }}</a>
+            </div>
+            <div class="movie-details">
+                <div class="genre">
+                    <strong> Gatunek:</strong> {{ movie.genre }}
+                </div>
+                <div class="production-year">
+                    <strong> Rok Produkcji:</strong> {{ movie.production_year }}
+                </div>
+                <div class="description">
+                    <strong> Opis:</strong> {{ movie.description }}
+                </div>
+            </div>
+            <div class="screening-times">
+                <strong>🎬 Godziny Seansów:</strong>
+                <div>
+                    {% if movie.screening_times %}
+                        {% for screening in movie.screening_times %}
+                            <div class="screening-time"> {{ screening.date }}: <strong>{{ screening.times | join(', ') }}</strong></div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-screening">Brak dostępnych godzin seansów</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <hr style="border: 0; height: 1px; background: #ddd; margin: 20px 0;">
+        <br><br>
+        {% endfor %}
+    </div>
+</body>
+</html>
