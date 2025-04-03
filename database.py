@@ -76,7 +76,7 @@ class Database:
         ''', (title, genre, description, year, countries))
         return self.cursor.lastrowid
 
-    def save_movie(self, title: str, genre: str, description: str, year: int, countries: str) -> Optional[int]:
+    def save_movie(self, title: str, genre: str, description: str, year: str, countries: str) -> Optional[int]:
         """Save movie details to the database."""
         try:
             self.cursor.execute("SELECT id FROM movies WHERE title = ? AND year = ?", (title, year))

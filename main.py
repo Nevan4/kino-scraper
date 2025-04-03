@@ -8,20 +8,61 @@ from bs4 import BeautifulSoup
 from logger_config import configure_logger, configure_movie_logger
 from email_sender import EmailSender
 from database import Database
-from typing import Dict, List, Tuple, Union
+from typing import TypedDict, Dict, List, Tuple, Union, Optional
 
 # Define the base URL as a module-level constant
 BASE_URL = "https://www.kinonh.pl/"
 
 
+class MovieScreenings(TypedDict):
+    screenings: Dict[str, List[str]]
+
+
+class MovieInfo(MovieScreenings):
+    title: str
+    link: str
+    genre: str
+    description: str
+    countries: str
+    year: str
+
+
+MoviesDict = Dict[str, MovieInfo]
+
+
 class KinoScraper:
+    """
+    Initialize the KinoScraper.
+
+    Args:
+        base_url (str): The base URL of the movie listings website.
+        db_name (str): The database name for storing scraped movies.
+
+    Attributes:
+        self.movies (MoviesDict): A dictionary of movies, structured as follows:
+
+        Example:
+        {
+            "Example Movie": {
+                "title": "Example Movie",
+                "link": "https://www.kinonh.pl/op.s?id=12345",
+                "screenings": {
+                    "11-03-2025": ["17:00", "19:30"]
+                },
+                "genre": "Drama",
+                "description": "An example movie description.",
+                "countries": "Polska",
+                "year": "2024",
+            }
+        }
+    """
     def __init__(self, base_url: str = BASE_URL, db_name: str = "movies.db") -> None:
         self.base_url = base_url
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
                           "Chrome/114.0.0.0 Safari/537.36"
         }
-        self.movies: Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]] = {}
+        self.movies: MoviesDict = {}
         # Configure logging for this class
         self.logger = configure_logger(
             self.__class__.__name__,
@@ -51,13 +92,13 @@ class KinoScraper:
         """Retrieve all movie titles and years already stored in the database."""
         return self.db.fetch_movie_titles_and_years()
 
-    def _fetch_movies_page(self, formatted_date: str) -> Union[Dict[str, str], None]:
+    def _fetch_movies_page(self, formatted_date: str) -> Union[str, None]:
         """Fetch the movies page for a given date."""
         url_for_json = f"{self.base_url}/rep.json?dzien={formatted_date}"
         self.logger.info(f"Fetching movies page for date: {formatted_date}")
         response = requests.get(url_for_json, headers=self.headers)
         if response.status_code == 200:
-            self.logger.info(f"Successfully fetched movies page for date: {formatted_date}")
+            self.logger.info(f"Successfully fetched movies page for date: {formatted_date}")   # todo: check return
             return response.json().get("lista", "")  # default value if the key doesn't exist
         else:
             self.logger.error(f"Failed to fetch movies page. Status code: {response.status_code}")
@@ -90,7 +131,15 @@ class KinoScraper:
                 screening_times = [a.text.strip() for a in times_div.find_all('a', class_='xseans')] if times_div else []
 
                 if title not in self.movies:
-                    self.movies[title] = {"title": title, "link": link, "screenings": {}}
+                    self.movies[title] = {
+                        "title": title,
+                        "link": link,
+                        "screenings": {},
+                        "genre": "",
+                        "description": "",
+                        "countries": "",
+                        "year": ""
+                    }
                 self.movies[title]["screenings"][formatted_date] = screening_times
                 self.logger.debug(f"Parsed movie: {title} for {formatted_date}")
 
@@ -124,7 +173,7 @@ class KinoScraper:
 
         return countries, year
 
-    def _fetch_genre(self, soup: BeautifulSoup) -> Tuple[str, Union[BeautifulSoup, None]]:
+    def _fetch_genre(self, soup: BeautifulSoup) -> Tuple[str, Optional[BeautifulSoup]]:
         """Fetch and return the movie genre from the movie page."""
         genre_h4 = next((h4 for h4 in soup.find_all('h4') if 'gatunek' in h4.get_text().lower()), None)
         if genre_h4:
@@ -132,7 +181,7 @@ class KinoScraper:
             return self._clean_genre_text(genre_text), genre_h4.find_parent()
         return "Genre not found", None
 
-    def _fetch_description(self, soup: BeautifulSoup, parent_div: Union[BeautifulSoup, None] = None) -> str:
+    def _fetch_description(self, soup: BeautifulSoup, parent_div: Optional[BeautifulSoup] = None) -> str:
         """Fetch and return the movie description from the movie page."""
         if parent_div:
             paragraphs = [p.text.strip() for p in parent_div.find_all('p') if p.text.strip()]
@@ -156,7 +205,7 @@ class KinoScraper:
                 return countries, year
         return "Unknown", "Unknown"
 
-    def _fetch_movie_details(self, movie: Dict[str, Union[str, Dict[str, List[str]]]]) -> None:
+    def _fetch_movie_details(self, movie: MovieInfo) -> None:
         """Fetch the genre, description, and production details for a movie."""
         self.logger.info(f"Fetching details for: {movie['title']}")
         response = requests.get(movie['link'], headers=self.headers)
@@ -187,7 +236,7 @@ class KinoScraper:
         else:
             self.logger.error(f"Failed to fetch movie page for {movie['title']}. Status code: {response.status_code}")
 
-    def _get_movies_schedule(self, days: int) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
+    def _get_movies_schedule(self, days: int) -> MoviesDict:
         """Private method to get the movie schedule."""
         for date in self._get_dates_range(days):
             self._parse_movies(date)
@@ -197,7 +246,7 @@ class KinoScraper:
 
         return self.movies
 
-    def get_movies(self, days: int = 8) -> Dict[str, Dict[str, Union[str, Dict[str, List[str]]]]]:
+    def get_movies(self, days: int = 8) -> MoviesDict:
         """Public method to get the movie schedule."""
         return self._get_movies_schedule(days)
 
@@ -231,7 +280,7 @@ def main() -> None:
     scraper = KinoScraper()
 
     # Number of days to fetch the movie schedule for
-    num_days = 8
+    num_days = 7
 
     # Get the movie schedule for the given number of days. Default is 8 days.
     movies_list = scraper.get_movies(days=num_days)
