@@ -30,6 +30,62 @@ class MovieInfo(MovieScreenings):
 MoviesDict = Dict[str, MovieInfo]
 
 
+class Fetcher:
+    def __init__(self, base_url: str, logger: logging.Logger) -> None:
+        self.base_url = base_url
+        self.logger = logger
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+                          "Chrome/114.0.0.0 Safari/537.36"
+        }
+
+    def _fetch_movies_page(self, formatted_date: str) -> Union[str, None]:
+        """Fetch the movies page for a given date."""
+        url_for_json = f"{self.base_url}/rep.json?dzien={formatted_date}"
+        self.logger.info(f"Fetching movies page for date: {formatted_date}")
+        response = requests.get(url_for_json, headers=self.headers)
+        if response.status_code == 200:
+            self.logger.info(f"Successfully fetched movies page for date: {formatted_date}")  # todo: check return
+            return response.json().get("lista", "")  # default value if the key doesn't exist
+        else:
+            self.logger.error(f"Failed to fetch movies page. Status code: {response.status_code}")
+            return None
+
+    # todo: create Parser class, move parsing methods to the Parser class, initialize Parser class to use its methods
+
+    def _fetch_movie_details(self, movie: MovieInfo) -> None:
+        """Fetch the genre, description, and production details for a movie."""
+        self.logger.info(f"Fetching details for: {movie['title']}")
+        response = requests.get(movie['link'], headers=self.headers)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.content, 'html.parser')
+
+            # Fetch genre and description
+            genre, parent_div = self._fetch_genre(soup)
+            description = self._fetch_description(soup, parent_div if genre != "Genre not found" else None)
+
+            # Fetch production
+            countries, year = self._fetch_production(soup)
+
+            # Update movie details with genre, description, and production
+            self.movies[movie['title']].update({
+                "genre": genre,
+                "description": description,
+                "countries": countries,
+                "year": year
+            })
+
+            # Save the movie to the database with the new production info
+            movie_id = self.db.save_movie(movie['title'], genre, description, year, countries)
+            self.logger.info(f"Fetched details for: {movie['title']}")
+            # Save the movie screening times in the db
+            screenings = movie.get("screenings", {})
+            self.db.save_screenings(movie_id, screenings)
+        else:
+            self.logger.error(
+                f"Failed to fetch movie page for {movie['title']}. Status code: {response.status_code}")
+
+
 class KinoScraper:
     """
     Initialize the KinoScraper.
@@ -56,12 +112,9 @@ class KinoScraper:
             }
         }
     """
+
     def __init__(self, base_url: str = BASE_URL, db_name: str = "movies.db") -> None:
         self.base_url = base_url
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
-                          "Chrome/114.0.0.0 Safari/537.36"
-        }
         self.movies: MoviesDict = {}
         # Configure logging for this class
         self.logger = configure_logger(
@@ -82,6 +135,9 @@ class KinoScraper:
         self.db.connect()
         self.db.initialize_schema()  # Ensure schema is set up
 
+        # todo: create Fetcher class, move fetching methods to the fetchin class, initialize fetcher class here
+        self.fetcher = Fetcher(base_url, self.logger)
+
     def _get_dates_range(self, days: int) -> List[str]:
         """Get a list of dates for the next 'days' days."""
         dates = [(datetime.today() + timedelta(days=i)).strftime("%d-%m-%Y") for i in range(days)]
@@ -98,7 +154,7 @@ class KinoScraper:
         self.logger.info(f"Fetching movies page for date: {formatted_date}")
         response = requests.get(url_for_json, headers=self.headers)
         if response.status_code == 200:
-            self.logger.info(f"Successfully fetched movies page for date: {formatted_date}")   # todo: check return
+            self.logger.info(f"Successfully fetched movies page for date: {formatted_date}")  # todo: check return
             return response.json().get("lista", "")  # default value if the key doesn't exist
         else:
             self.logger.error(f"Failed to fetch movies page. Status code: {response.status_code}")
@@ -128,7 +184,8 @@ class KinoScraper:
 
                 # Find the screening times
                 times_div = event.find_next_sibling('div', class_='seanserep')
-                screening_times = [a.text.strip() for a in times_div.find_all('a', class_='xseans')] if times_div else []
+                screening_times = [a.text.strip() for a in
+                                   times_div.find_all('a', class_='xseans')] if times_div else []
 
                 if title not in self.movies:
                     self.movies[title] = {
