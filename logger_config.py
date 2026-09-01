@@ -1,66 +1,39 @@
 import logging
+import sys
 from typing import Optional
 
 
-def configure_logger(name: str, log_file: str = "app.log", level: int = logging.INFO) -> logging.Logger:
-    """
-    Configures and returns a logger for file output
-
-    Args:
-        name (str): Name of the logger (usually the module/class name).
-        log_file (str): Path to the log file.
-        level (int): Logging level (e.g., logging.INFO, logging.DEBUG).
-
-    Returns:
-        logging.Logger: Configured logger instance for file output.
-    """
+def configure_logger(
+    name: str,
+    log_file: str = "app.log",
+    level: int = logging.INFO,
+    encoding: Optional[str] = None,
+) -> logging.Logger:
     logger = logging.getLogger(name)
-
-    # Avoid duplicate handlers, and remove existing ones if any
-    if logger.hasHandlers():
-        logger.handlers.clear()
-
-    file_handler = logging.FileHandler(log_file)
-
-    file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    ))
-
-    # Add handler to logger
-    logger.addHandler(file_handler)
     logger.setLevel(level)
+    logger.propagate = False
+
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    handler_keys = {(type(h), getattr(h, "baseFilename", None), getattr(h, "stream", None)) for h in logger.handlers}
+
+    file_handler = logging.FileHandler(log_file, encoding=encoding or "utf-8")
+    file_handler.setFormatter(formatter)
+    file_key = (type(file_handler), file_handler.baseFilename, None)
+    if file_key not in handler_keys:
+        logger.addHandler(file_handler)
+
+    has_stderr = any(isinstance(h, logging.StreamHandler) and getattr(h, "stream", None) is sys.stderr for h in logger.handlers)
+    if not has_stderr:
+        stream_handler = logging.StreamHandler(sys.stderr)
+        stream_handler.setFormatter(formatter)
+        logger.addHandler(stream_handler)
 
     return logger
 
 
 def configure_movie_logger(name: str, log_file: str = "app.log", level: int = logging.INFO) -> logging.Logger:
-    """
-    Configures and returns a logger for file output
-
-    Args:
-        name (str): Name of the logger (usually the module/class name).
-        log_file (str): Path to the log file.
-        level (int): Logging level (e.g., logging.INFO, logging.DEBUG).
-
-    Returns:
-        logging.Logger: Configured logger instance for file output.
-    """
-    logger = logging.getLogger(name)
-
-    # Avoid duplicate handlers, and remove existing ones if any
-    if logger.hasHandlers():
-        logger.handlers.clear()
-
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-
-    file_handler.setFormatter(logging.Formatter(
-        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
-    ))
-
-    # Add handler to logger
-    logger.addHandler(file_handler)
-    logger.setLevel(level)
-
-    return logger
+    return configure_logger(name, log_file=log_file, level=level, encoding="utf-8")
